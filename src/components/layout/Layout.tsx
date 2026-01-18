@@ -4,7 +4,7 @@ import { Header } from './Header';
 import { useState } from 'react';
 
 export function Layout() {
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const [sidebarCollapsed] = useState(false);
 
     return (
         <div className="min-h-screen bg-slate-50">

@@ -1,9 +1,7 @@
 import { useState } from 'react';
 import {
-    Settings as SettingsIcon,
     User,
     Bell,
-    Palette,
     Database,
     Download,
     Trash2,
@@ -65,7 +63,7 @@ export default function Settings() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `gastrowws-export-${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `gastrowws -export -${new Date().toISOString().split('T')[0]}.json`;
         a.click();
         URL.revokeObjectURL(url);
 

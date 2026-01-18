@@ -3,15 +3,13 @@ import {
     Upload,
     FileText,
     Search,
-    Filter,
-    Check,
     X,
-    Clock,
     Eye,
     AlertTriangle,
-    FileUp
+    FileUp,
+    Check
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -34,7 +32,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { DEMO_DOCUMENTS } from '@/lib/mockData';
 import type { UploadedDocument } from '@/types';
-import { cn } from '@/lib/utils';
 
 export default function Documents() {
     const [documents, setDocuments] = useState(DEMO_DOCUMENTS);

@@ -9,7 +9,7 @@ import {
     Mail,
     MapPin
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -71,8 +71,8 @@ export default function Suppliers() {
                     <Star
                         key={star}
                         className={`h-4 w-4 ${star <= rating
-                                ? 'text-amber-400 fill-amber-400'
-                                : 'text-slate-200'
+                            ? 'text-amber-400 fill-amber-400'
+                            : 'text-slate-200'
                             }`}
                     />
                 ))}

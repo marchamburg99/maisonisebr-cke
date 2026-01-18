@@ -3,16 +3,12 @@ import {
     Package,
     Search,
     Plus,
-    Filter,
     AlertTriangle,
     Edit,
-    Trash2,
-    ArrowUpDown,
     ShoppingBag,
     Mail
 } from 'lucide-react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle }
-    from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -311,9 +307,9 @@ function OrderDialog({ product, onClose, suppliers }: OrderDialogProps) {
     /* Safe Mail Client Trigger */
     const handleSendMail = () => {
         const subject = `Bestellung: ${product.name} - Ihr Restaurant`;
-        const body = `Sehr geehrte Damen und Herren,\nSehr geehrte(r) ${supplier.contactPerson},\n\nbitte liefern Sie uns folgende Artikel:\n\nArtikel: ${product.name}\nMenge: ${quantity} ${product.unit}\n\nLieferdatum: schnellstmöglich\n\nMit freundlichen Grüßen,\nIhr Restaurant-Team`;
+        const body = `Sehr geehrte Damen und Herren, \nSehr geehrte(r) ${supplier.contactPerson}, \n\nbitte liefern Sie uns folgende Artikel: \n\nArtikel: ${product.name} \nMenge: ${quantity} ${product.unit} \n\nLieferdatum: schnellstmöglich\n\nMit freundlichen Grüßen, \nIhr Restaurant - Team`;
 
-        const mailtoLink = `mailto:${supplier.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+        const mailtoLink = `mailto:${supplier.email}?subject = ${encodeURIComponent(subject)}& body=${encodeURIComponent(body)} `;
 
         // Robust hidden link method
         const link = document.createElement('a');
@@ -330,9 +326,9 @@ function OrderDialog({ product, onClose, suppliers }: OrderDialogProps) {
     /* Copy to Clipboard Fallback */
     const handleCopyText = async () => {
         const subject = `Bestellung: ${product.name} - Ihr Restaurant`;
-        const body = `Sehr geehrte Damen und Herren,\nSehr geehrte(r) ${supplier.contactPerson},\n\nbitte liefern Sie uns folgende Artikel:\n\nArtikel: ${product.name}\nMenge: ${quantity} ${product.unit}\n\nLieferdatum: schnellstmöglich\n\nMit freundlichen Grüßen,\nIhr Restaurant-Team`;
+        const body = `Sehr geehrte Damen und Herren, \nSehr geehrte(r) ${supplier.contactPerson}, \n\nbitte liefern Sie uns folgende Artikel: \n\nArtikel: ${product.name} \nMenge: ${quantity} ${product.unit} \n\nLieferdatum: schnellstmöglich\n\nMit freundlichen Grüßen, \nIhr Restaurant - Team`;
 
-        const fullText = `An: ${supplier.email}\nBetreff: ${subject}\n\n${body}`;
+        const fullText = `An: ${supplier.email} \nBetreff: ${subject} \n\n${body} `;
 
         try {
             await navigator.clipboard.writeText(fullText);

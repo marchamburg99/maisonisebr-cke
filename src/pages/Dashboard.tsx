@@ -3,7 +3,6 @@ import {
     TrendingDown,
     FileText,
     Package,
-    Truck,
     AlertTriangle,
     ArrowRight,
     CheckCircle,
