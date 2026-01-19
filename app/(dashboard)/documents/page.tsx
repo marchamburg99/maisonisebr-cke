@@ -193,12 +193,68 @@ export default function DocumentsPage() {
   // Simulated PDF extraction - in production, this would use OCR/AI service
   const extractInvoiceData = useCallback(async (file: File): Promise<ExtractedInvoiceData> => {
     // Simulate processing time
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
 
-    // For demo: extract data based on filename pattern or return sample data
+    // For demo: detect document type based on filename
     // In production, this would call an OCR service like Google Cloud Vision, AWS Textract, etc.
+    const fileName = file.name.toLowerCase();
+    const isDeliveryNote = fileName.includes("delivery") || fileName.includes("lieferschein");
 
-    // Sample extracted data (matching the sample invoice structure)
+    if (isDeliveryNote) {
+      // Lieferschein - no prices, just quantities
+      return {
+        fileName: file.name,
+        type: "delivery_note",
+        invoiceNumber: "LS-2024-8921",
+        supplierName: "Frischehof Müller GmbH",
+        supplierAddress: "Ackerstraße 12, 20457 Hamburg",
+        documentDate: "2024-01-25",
+        dueDate: "",
+        netAmount: 0,
+        taxRate: 0,
+        taxAmount: 0,
+        totalAmount: 0,
+        items: [
+          {
+            name: 'Kartoffeln "Belana" festkochend',
+            quantity: 25,
+            unit: "kg",
+            unitPrice: 0,
+            totalPrice: 0,
+          },
+          {
+            name: "Speisezwiebeln Metzger",
+            quantity: 10,
+            unit: "kg",
+            unitPrice: 0,
+            totalPrice: 0,
+          },
+          {
+            name: "Möhren gewaschen, Kiste",
+            quantity: 2,
+            unit: "Stk",
+            unitPrice: 0,
+            totalPrice: 0,
+          },
+          {
+            name: "Rotkohl frisch",
+            quantity: 10,
+            unit: "kg",
+            unitPrice: 0,
+            totalPrice: 0,
+          },
+          {
+            name: "Hähnchenbrust",
+            quantity: 10,
+            unit: "kg",
+            unitPrice: 0,
+            totalPrice: 0,
+          },
+        ],
+      };
+    }
+
+    // Rechnung - with prices
     return {
       fileName: file.name,
       type: "invoice",
