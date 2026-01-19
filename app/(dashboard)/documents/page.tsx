@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Upload,
   FileText,
@@ -88,6 +88,7 @@ export default function DocumentsPage() {
     null
   );
   const [isUploading, setIsUploading] = useState(false);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -125,9 +126,19 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+  const processFile = useCallback(async (file: File) => {
+    if (!user) return;
+
+    // Validate file type
+    const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
+    if (!validTypes.includes(file.type)) {
+      toast({
+        title: "Ungültiger Dateityp",
+        description: "Bitte laden Sie eine PDF, JPG oder PNG Datei hoch.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setIsUploading(true);
 
@@ -165,11 +176,46 @@ export default function DocumentsPage() {
       title: "Dokument hochgeladen",
       description: `${file.name} wurde erfolgreich analysiert.`,
     });
+  }, [user, createDocument, toast]);
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
     }
   };
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set dragging to false if we're leaving the drop zone entirely
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+    setIsDragging(false);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+      await processFile(files[0]);
+    }
+  }, [processFile]);
 
   const handleApprove = async (docId: Id<"documents">) => {
     await updateStatus({ id: docId, status: "approved" });
@@ -243,19 +289,66 @@ export default function DocumentsPage() {
       </div>
 
       {/* Upload Area */}
-      <Card className="border-dashed border-2 border-slate-200 bg-slate-50">
+      <Card
+        className={`border-dashed border-2 transition-all duration-200 ${
+          isDragging
+            ? "border-amber-500 bg-amber-50 scale-[1.02] shadow-lg"
+            : isUploading
+            ? "border-amber-300 bg-amber-50"
+            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100"
+        }`}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
         <CardContent className="py-8">
           <div
-            className="flex flex-col items-center justify-center text-center cursor-pointer"
-            onClick={() => fileInputRef.current?.click()}
+            className={`flex flex-col items-center justify-center text-center cursor-pointer transition-transform duration-200 ${
+              isDragging ? "scale-105" : ""
+            }`}
+            onClick={() => !isUploading && fileInputRef.current?.click()}
           >
-            <div className="p-4 rounded-full bg-amber-100 mb-4">
-              <FileUp className="h-8 w-8 text-amber-600" />
+            <div className={`p-4 rounded-full mb-4 transition-all duration-200 ${
+              isDragging
+                ? "bg-amber-200 scale-110"
+                : isUploading
+                ? "bg-amber-100"
+                : "bg-amber-100"
+            }`}>
+              {isUploading ? (
+                <Loader2 className="h-8 w-8 text-amber-600 animate-spin" />
+              ) : (
+                <FileUp className={`h-8 w-8 text-amber-600 transition-transform duration-200 ${
+                  isDragging ? "animate-bounce" : ""
+                }`} />
+              )}
             </div>
-            <h3 className="font-medium text-slate-900 mb-1">
-              Dokument hier ablegen oder klicken zum Hochladen
+            <h3 className={`font-medium mb-1 transition-colors duration-200 ${
+              isDragging ? "text-amber-700" : "text-slate-900"
+            }`}>
+              {isUploading
+                ? "Dokument wird analysiert..."
+                : isDragging
+                ? "Dokument hier ablegen"
+                : "Dokument hier ablegen oder klicken zum Hochladen"
+              }
             </h3>
-            <p className="text-sm text-slate-500">PDF, JPG oder PNG</p>
+            <p className={`text-sm transition-colors duration-200 ${
+              isDragging ? "text-amber-600" : "text-slate-500"
+            }`}>
+              {isUploading
+                ? "Bitte warten..."
+                : "PDF, JPG oder PNG"
+              }
+            </p>
+            {isDragging && (
+              <div className="mt-3 px-4 py-2 bg-amber-200 rounded-full">
+                <span className="text-sm font-medium text-amber-800">
+                  Loslassen zum Hochladen
+                </span>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
