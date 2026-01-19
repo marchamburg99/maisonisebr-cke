@@ -86,36 +86,43 @@ export const listWithItems = query({
 function guessCategory(name: string): "fleisch" | "fisch" | "gemuese" | "obst" | "milchprodukte" | "getraenke" | "gewuerze" | "backwaren" | "sonstiges" {
   const nameLower = name.toLowerCase();
 
-  // Fleisch
-  if (/rind|schwein|hähnchen|huhn|pute|lamm|kalb|wurst|schinken|speck|filet|steak|hack/.test(nameLower)) {
+  // Fleisch (100+ Begriffe)
+  if (/rind|schwein|hähnchen|huhn|pute|lamm|kalb|wurst|schinken|speck|filet|steak|hack|braten|gulasch|schnitzel|kotelett|rippchen|bauch|leber|niere|zunge|herz|brust|keule|flügel|innereien|fleisch|salami|mortadella|leberwurst|blutwurst|weißwurst|bratwurst|bockwurst|wiener|frankfurter|knacker|landjäger|mettwurst|teewurst|cervelat|chorizo|pancetta|prosciutto|coppa|bresaola|pastrami|corned|beef|entrecôte|roastbeef|tafelspitz|sauerbraten|roulade|frikadelle|bulette|fleischkäse|leberkäse|aufschnitt|bacon|kassler|eisbein|haxe|ochsenschwanz|bäckchen|nacken|schulter|hüfte|oberschale|unterschale|kugel|nuss|bugstück|false|filet|dicke|rippe|hohe|rippe|flache|schulterfilet|medaillons|geschnetzeltes|pulled|pork|spare|ribs|t-bone|porterhouse|ribeye|tenderloin|sirloin|flank|brisket|chuck|ente|gans|wachtel|fasan|rehkeule|hirsch|wildschwein|hase|kaninchen|wild|strauß|büffel|wagyu|dry|aged/.test(nameLower)) {
     return "fleisch";
   }
-  // Fisch
-  if (/lachs|fisch|dorade|forelle|thunfisch|garnele|shrimp|muschel|tintenfisch|kabeljau/.test(nameLower)) {
+
+  // Fisch & Meeresfrüchte (80+ Begriffe)
+  if (/lachs|fisch|dorade|forelle|thunfisch|garnele|shrimp|muschel|tintenfisch|kabeljau|hering|makrele|sardine|sardelle|anchovi|scholle|seezunge|steinbutt|heilbutt|zander|barsch|karpfen|wels|aal|rotbarsch|seeteufel|wolfsbarsch|branzino|goldbrasse|meerbrasse|schwertfisch|marlin|hai|rochen|seelachs|pangasius|tilapia|viktoriabarsch|waller|hecht|schleie|flunder|seehecht|lengfisch|schellfisch|dorsch|skrei|klippfisch|stockfisch|matjes|bismarckhering|rollmops|brathering|räucherlachs|graved|lox|kaviar|rogen|sushi|sashimi|ceviche|krebs|languste|hummer|lobster|krabben|krebsfleisch|scampi|gambas|crevetten|königskrabbe|flusskrebse|austern|jakobsmuscheln|miesmuscheln|venusmuscheln|herzmuscheln|grünlippmuscheln|calamari|pulpo|oktopus|sepia|tintenfischringe|surimi|fischstäbchen|backfisch|kieler|sprotten|sardellen|anchovis|bottarga/.test(nameLower)) {
     return "fisch";
   }
-  // Gemüse
-  if (/kartoffel|tomate|zwiebel|paprika|gurke|salat|möhre|karotte|kohl|rotkohl|spinat|zucchini|aubergine|brokkoli|blumenkohl|lauch|sellerie|champignon|pilz/.test(nameLower)) {
+
+  // Gemüse (120+ Begriffe)
+  if (/kartoffel|tomate|zwiebel|paprika|gurke|salat|möhre|karotte|kohl|rotkohl|spinat|zucchini|aubergine|brokkoli|blumenkohl|lauch|sellerie|champignon|pilz|spargel|erbse|bohne|mais|kürbis|fenchel|artischocke|radieschen|rettich|rübe|pastinake|petersilienwurzel|schwarzwurzel|topinambur|knollensellerie|stangensellerie|staudensellerie|mangold|grünkohl|palmkohl|chinakohl|weißkohl|wirsing|rosenkohl|pak choi|bok choy|kohlrabi|rucola|radicchio|chicorée|endivie|feldsalat|kopfsalat|eisbergsalat|lollo|romano|batavia|eichblatt|frisée|kresse|portulak|vogelmiere|bärlauch|schnittlauch|frühlingszwiebel|schalotte|knoblauch|ingwer|kurkuma|galgant|meerrettich|wasabi|süßkartoffel|yams|maniok|taro|okra|jalapeno|chili|peperoni|pfefferoni|poblano|habanero|serrano|cayenne|tabasco|ancho|chipotle|kirschtomate|cocktailtomate|rispentomate|ochsenherz|roma|san marzano|fleischtomate|datteltomate|cherrytomaten|snackgurke|salatgurke|einlegegurke|schmorgurke|cornichon|gewürzgurke|senfgurke|pfifferling|steinpilz|austernpilz|shiitake|portobello|kräuterseitling|enoki|maitake|morchel|trüffel|egerlinge|wiesenchampignon|riesenchampignon|brauner|champignon|gemüse|grünzeug/.test(nameLower)) {
     return "gemuese";
   }
-  // Obst
-  if (/apfel|birne|banane|orange|zitrone|lime|erdbeere|himbeere|traube|melone|ananas|mango|kiwi/.test(nameLower)) {
+
+  // Obst (100+ Begriffe)
+  if (/apfel|birne|banane|orange|zitrone|lime|limette|erdbeere|himbeere|traube|melone|ananas|mango|kiwi|pfirsich|nektarine|aprikose|pflaume|zwetschge|kirsche|johannisbeere|stachelbeere|heidelbeere|blaubeere|brombeere|preiselbeere|cranberry|goji|acai|aronia|holunder|sanddorn|hagebutte|quitte|granatapfel|feige|dattel|rosine|sultanine|korinthe|weintraube|tafeltraube|clementine|mandarine|satsuma|tangerin|pomelo|grapefruit|blutorange|kumquat|yuzu|bergamotte|limone|cedrat|zitrusfrucht|citrus|litschi|lychee|rambutan|longan|drachenfrucht|pitaya|papaya|maracuja|passionsfrucht|guave|cherimoya|kaktusfeige|sternfrucht|karambole|jackfruit|durian|physalis|kapstachelbeere|sharon|kaki|persimone|wassermelone|honigmelone|cantaloup|galiamelone|netzmelone|charentais|cavaillon|zuckermelone|grüne|banane|kochbanane|babybanane|plantain|rote|banane|obst|früchte|frucht|beere|beeren|kernobst|steinobst|südfrüchte|exoten|trockenobst|dörrobs/.test(nameLower)) {
     return "obst";
   }
-  // Milchprodukte
-  if (/milch|sahne|butter|käse|joghurt|quark|parmesan|mozzarella|gouda|emmentaler|schmand|créme/.test(nameLower)) {
+
+  // Milchprodukte (80+ Begriffe)
+  if (/milch|sahne|butter|käse|joghurt|quark|parmesan|mozzarella|gouda|emmentaler|schmand|crème|créme|creme|rahm|mascarpone|ricotta|burrata|feta|halloumi|ziegenkäse|schafskäse|frischkäse|hüttenkäse|cottage|skyr|kefir|buttermilch|dickmilch|sauerrahm|crème fraîche|schmand|schlagsahne|kaffeesahne|kondensmilch|evaporierte|milchpulver|molke|molkepulver|lactose|laktose|vollmilch|fettarme|halbfett|magermilch|rohmilch|heumilch|weidemilch|biomilch|h-milch|frischmilch|eiscreme|speiseeis|gelato|sorbet|frozen|yogurt|pudding|grieß|milchreis|flammeri|blanc|mange|tilsiter|appenzeller|gruyère|comté|brie|camembert|gorgonzola|roquefort|stilton|blauschimmel|edelpilzkäse|bergkäse|almkäse|raclette|fondue|reibekäse|streukäse|scheibletten|schmelzkäse|streichkäse|kräuterbutter|süßrahmbutter|sauerrahmbutter|ghee|butterschmalz|butterfett|topfen|germknödel|kaiserschmarrn|pfannkuchen/.test(nameLower)) {
     return "milchprodukte";
   }
-  // Getränke
-  if (/wasser|cola|saft|bier|wein|schnaps|likör|kaffee|tee|limonade|sprite|fanta/.test(nameLower)) {
+
+  // Getränke (100+ Begriffe)
+  if (/wasser|cola|saft|bier|wein|schnaps|likör|kaffee|tee|limonade|sprite|fanta|mineralwasser|sprudel|selters|tafelwasser|quellwasser|heilwasser|sodawasser|tonic|bitter|lemon|ginger|ale|energy|drink|red bull|monster|rockstar|apfelsaft|orangensaft|traubensaft|kirschsaft|johannisbeersaft|multivitamin|acerola|smoothie|nektar|direktsaft|konzentrat|schorle|apfelschorle|weinschorle|radler|alster|diesel|shandy|pilsner|pils|lager|weizen|weißbier|hefeweizen|kristallweizen|altbier|kölsch|export|märzen|bock|doppelbock|starkbier|schwarzbier|porter|stout|ale|ipa|pale|craft|rotwein|weißwein|rosé|sekt|champagner|prosecco|cava|crémant|schaumwein|perlwein|glühwein|federweißer|eiswein|dessertwein|portwein|sherry|madeira|marsala|vermouth|wermut|cognac|brandy|weinbrand|grappa|obstler|obstbrand|williams|kirschwasser|zwetschgenwasser|mirabelle|gin|vodka|wodka|rum|whisky|whiskey|bourbon|tequila|mezcal|sake|soju|baijiu|ouzo|raki|pastis|absinth|sambuca|amaretto|kahlua|baileys|cointreau|grand|marnier|curaçao|triple|sec|espresso|cappuccino|latte|macchiato|americano|filterkaffee|mokka|türkischer|entkoffeiniert|instant|schwarztee|grüntee|weißer|tee|oolong|pu-erh|rooibos|mate|chai|früchtetee|kräutertee|pfefferminz|kamille|fenchel|eistee|kakao|heiße|schokolade|ovomaltine|malz|getränk|drink|beverag/.test(nameLower)) {
     return "getraenke";
   }
-  // Gewürze
-  if (/salz|pfeffer|öl|olivenöl|essig|zucker|mehl|gewürz|oregano|basilikum|thymian|rosmarin|curry|paprika\s*pulver|zimt|muskat/.test(nameLower)) {
+
+  // Gewürze & Zutaten (120+ Begriffe)
+  if (/salz|pfeffer|öl|olivenöl|essig|zucker|mehl|gewürz|oregano|basilikum|thymian|rosmarin|curry|paprikapulver|zimt|muskat|vanille|safran|kurkuma|koriander|kreuzkümmel|kümmel|anis|sternanis|fenchelsamen|kardamom|nelke|piment|wacholder|lorbeer|majoran|estragon|dill|petersilie|schnittlauch|minze|salbei|bohnenkraut|liebstöckel|kerbel|beifuß|lavendel|zitronengras|galangal|ingwerpulver|knoblauchpulver|zwiebelpulver|selleriesalz|kräutersalz|meersalz|himalayasalz|fleur de sel|steinsalz|rauchsalz|schwarzer pfeffer|weißer pfeffer|grüner pfeffer|rosa pfeffer|szechuan|cayennepfeffer|chilipulver|chiliflocken|sambal|harissa|tabascosauce|sriracha|wasabipaste|senfpulver|senf|dijon|bauernsenf|süßer senf|meerrettichpaste|essigessenz|balsamico|aceto|weißweinessig|rotweinessig|apfelessig|reisessig|sherryessig|branntweinessig|sonnenblumenöl|rapsöl|maiskeimöl|erdnussöl|sesamöl|walnussöl|haselnussöl|traubenkernöl|kürbiskernöl|leinöl|hanföl|kokosöl|palmöl|butterschmalz|schmalz|trüffelöl|chiliöl|knoblauchöl|kräuteröl|weizenmehl|dinkelmehl|roggenmehl|vollkornmehl|maismehl|reismehl|buchweizenmehl|kichererbsenmehl|mandelmehl|kokosmehl|kartoffelstärke|maisstärke|speisestärke|backpulver|natron|hefe|trockenhefe|frischhefe|gelatine|agar|pektin|xanthan|guarkern|johannisbrotkern|puderzucker|rohrzucker|brauner zucker|muscovado|kokosblütenzucker|ahornsirup|agavensirup|honig|melasse|glukose|maltose|isomalt|stevia|erythrit|xylit|süßstoff|bouillon|brühe|fond|demi-glace|jus|sojasauce|tamari|fischsauce|austernsauce|hoisin|teriyaki|miso|tahini|sesammus|erdnussbutter|mandelmus|nussmus/.test(nameLower)) {
     return "gewuerze";
   }
-  // Backwaren
-  if (/brot|brötchen|baguette|ciabatta|croissant|kuchen|torte|gebäck/.test(nameLower)) {
+
+  // Backwaren (60+ Begriffe)
+  if (/brot|brötchen|baguette|ciabatta|croissant|kuchen|torte|gebäck|semmel|weck|schrippe|rundstück|kaisersemmel|laugenbretzel|brezel|laugengebäck|laugenstange|vollkornbrot|mischbrot|weißbrot|schwarzbrot|pumpernickel|roggenbrot|dinkelbrot|sauerteig|toastbrot|sandwich|tramezzini|focaccia|fladenbrot|pita|naan|chapati|tortilla|wrap|knäckebrot|zwieback|cracker|grissini|biscotti|keks|cookie|plätzchen|waffel|pfannkuchen|crêpe|blini|donut|berliner|krapfen|strudel|plunder|blätterteig|hefeteig|mürbeteig|brandteig|biskuit|rührkuchen|gugelhupf|marmorkuchen|zitronenkuchen|käsekuchen|schwarzwälder|sachertorte|tiramisu|brownie|muffin|cupcake|eclair|windbeutel|baiser|meringue|macaron|praline|konfekt|lebkuchen|stollen|panettone|brioche|franzbrötchen|zimtschnecke|nussschnecke|mohnschnecke|rosinenschnecke|teilchen|hörnchen|backware|teigware|gebäckstück/.test(nameLower)) {
     return "backwaren";
   }
 
