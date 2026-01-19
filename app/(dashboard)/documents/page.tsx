@@ -2,13 +2,11 @@
 
 import { useState, useRef, useCallback } from "react";
 import {
-  Upload,
   FileText,
   Search,
   X,
   Eye,
   AlertTriangle,
-  FileUp,
   Check,
   Loader2,
   Plus,
@@ -16,6 +14,8 @@ import {
   Edit,
   Download,
   FileIcon,
+  Upload,
+  FileSpreadsheet,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { useAuth } from "@/hooks/use-auth";
 import { Id } from "@/convex/_generated/dataModel";
+import { downloadCsvTemplate, parseCsvFile, CsvItem } from "@/lib/csv-utils";
 
 type Anomaly = {
   _id: Id<"anomalies">;
@@ -126,7 +127,6 @@ export default function DocumentsPage() {
   const updateStatus = useMutation(api.documents.updateStatus);
   const createDocument = useMutation(api.documents.create);
   const updateDocument = useMutation(api.documents.update);
-  const generateUploadUrl = useMutation(api.documents.generateUploadUrl);
   const { user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -134,14 +134,11 @@ export default function DocumentsPage() {
   const [selectedDoc, setSelectedDoc] = useState<DocumentWithItems | null>(null);
   const [isViewMode, setIsViewMode] = useState(true);
   const [editingDoc, setEditingDoc] = useState<ExtractedInvoiceData | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-  const [isVerifyDialogOpen, setIsVerifyDialogOpen] = useState(false);
-  const [extractedData, setExtractedData] = useState<ExtractedInvoiceData | null>(null);
-  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newDocData, setNewDocData] = useState<ExtractedInvoiceData | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const csvInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   // Get file URL when document is selected
@@ -190,201 +187,227 @@ export default function DocumentsPage() {
     }
   };
 
-  // Simulated PDF extraction - in production, this would use OCR/AI service
-  const extractInvoiceData = useCallback(async (file: File): Promise<ExtractedInvoiceData> => {
-    // Simulate processing time
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-
-    // For demo: detect document type based on filename
-    // In production, this would call an OCR service like Google Cloud Vision, AWS Textract, etc.
-    const fileName = file.name.toLowerCase();
-    const isDeliveryNote = fileName.includes("delivery") || fileName.includes("lieferschein");
-
-    if (isDeliveryNote) {
-      // Lieferschein - no prices, just quantities
-      return {
-        fileName: file.name,
-        type: "delivery_note",
-        invoiceNumber: "LS-2024-8921",
-        supplierName: "Frischehof Müller GmbH",
-        supplierAddress: "Ackerstraße 12, 20457 Hamburg",
-        documentDate: "2024-01-25",
-        dueDate: "",
-        netAmount: 0,
-        taxRate: 0,
-        taxAmount: 0,
-        totalAmount: 0,
-        items: [
-          {
-            name: 'Kartoffeln "Belana" festkochend',
-            quantity: 25,
-            unit: "kg",
-            unitPrice: 0,
-            totalPrice: 0,
-          },
-          {
-            name: "Speisezwiebeln Metzger",
-            quantity: 10,
-            unit: "kg",
-            unitPrice: 0,
-            totalPrice: 0,
-          },
-          {
-            name: "Möhren gewaschen, Kiste",
-            quantity: 2,
-            unit: "Stk",
-            unitPrice: 0,
-            totalPrice: 0,
-          },
-          {
-            name: "Rotkohl frisch",
-            quantity: 10,
-            unit: "kg",
-            unitPrice: 0,
-            totalPrice: 0,
-          },
-          {
-            name: "Hähnchenbrust",
-            quantity: 10,
-            unit: "kg",
-            unitPrice: 0,
-            totalPrice: 0,
-          },
-        ],
-      };
-    }
-
-    // Rechnung - with prices
-    return {
-      fileName: file.name,
+  // Initialize new document form
+  const openCreateDialog = useCallback(() => {
+    const today = new Date().toISOString().split("T")[0];
+    setNewDocData({
+      fileName: "",
       type: "invoice",
-      invoiceNumber: "2024-8921",
-      supplierName: "Frischehof Müller GmbH",
-      supplierAddress: "Ackerstraße 12, 20457 Hamburg",
-      documentDate: "2024-01-25",
-      dueDate: "2024-02-04",
-      netAmount: 66.00,
+      invoiceNumber: "",
+      supplierName: "",
+      supplierAddress: "",
+      documentDate: today,
+      dueDate: "",
+      netAmount: 0,
       taxRate: 7,
-      taxAmount: 4.62,
-      totalAmount: 70.62,
-      items: [
-        {
-          name: 'Kartoffeln "Belana" festkochend',
-          quantity: 25,
-          unit: "kg",
-          unitPrice: 1.20,
-          totalPrice: 30.00,
-        },
-        {
-          name: "Speisezwiebeln Metzger",
-          quantity: 10,
-          unit: "kg",
-          unitPrice: 0.90,
-          totalPrice: 9.00,
-        },
-        {
-          name: "Möhren gewaschen, Kiste",
-          quantity: 2,
-          unit: "Stk",
-          unitPrice: 6.50,
-          totalPrice: 13.00,
-        },
-        {
-          name: "Rotkohl frisch",
-          quantity: 10,
-          unit: "kg",
-          unitPrice: 1.40,
-          totalPrice: 14.00,
-        },
-      ],
-    };
+      taxAmount: 0,
+      totalAmount: 0,
+      items: [{ name: "", quantity: 0, unit: "kg", unitPrice: 0, totalPrice: 0 }],
+    });
+    setIsCreateDialogOpen(true);
   }, []);
 
-  const processFile = useCallback(async (file: File) => {
-    if (!user) return;
+  // Handle CSV import
+  const handleCsvImport = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !newDocData) return;
 
-    // Validate file type
-    const validTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'];
-    if (!validTypes.includes(file.type)) {
+    try {
+      const items = await parseCsvFile(file, newDocData.type);
+
+      // Convert CsvItem to ExtractedItem
+      const extractedItems: ExtractedItem[] = items.map((item: CsvItem) => ({
+        name: item.name,
+        quantity: item.quantity,
+        unit: item.unit,
+        unitPrice: item.unitPrice,
+        totalPrice: item.totalPrice,
+      }));
+
+      // Recalculate totals
+      const netAmount = extractedItems.reduce((sum, item) => sum + item.totalPrice, 0);
+      const taxAmount = netAmount * (newDocData.taxRate / 100);
+      const totalAmount = netAmount + taxAmount;
+
+      setNewDocData({
+        ...newDocData,
+        items: extractedItems,
+        netAmount: Math.round(netAmount * 100) / 100,
+        taxAmount: Math.round(taxAmount * 100) / 100,
+        totalAmount: Math.round(totalAmount * 100) / 100,
+      });
+
       toast({
-        title: "Ungültiger Dateityp",
-        description: "Bitte laden Sie eine PDF, JPG oder PNG Datei hoch.",
+        title: "CSV importiert",
+        description: `${extractedItems.length} Positionen wurden importiert.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Fehler beim Import",
+        description: error instanceof Error ? error.message : "CSV konnte nicht gelesen werden.",
+        variant: "destructive",
+      });
+    }
+
+    // Reset input
+    if (csvInputRef.current) {
+      csvInputRef.current.value = "";
+    }
+  }, [newDocData, toast]);
+
+  // Update new document field
+  const updateNewDocField = useCallback((field: keyof ExtractedInvoiceData, value: string | number) => {
+    if (!newDocData) return;
+
+    // Handle type change - reset items if switching to/from delivery note
+    if (field === "type") {
+      const newType = value as "invoice" | "delivery_note";
+      if (newType === "delivery_note") {
+        // Clear prices for delivery note
+        const updatedItems = newDocData.items.map(item => ({
+          ...item,
+          unitPrice: 0,
+          totalPrice: 0,
+        }));
+        setNewDocData({
+          ...newDocData,
+          type: newType,
+          items: updatedItems,
+          netAmount: 0,
+          taxRate: 0,
+          taxAmount: 0,
+          totalAmount: 0,
+        });
+        return;
+      } else if (newDocData.type === "delivery_note" && newType === "invoice") {
+        // Switching to invoice, set default tax rate
+        setNewDocData({
+          ...newDocData,
+          type: newType,
+          taxRate: 7,
+        });
+        return;
+      }
+    }
+
+    setNewDocData({ ...newDocData, [field]: value });
+  }, [newDocData]);
+
+  // Update new document item
+  const updateNewDocItem = useCallback((index: number, field: keyof ExtractedItem, value: string | number) => {
+    if (!newDocData) return;
+    const newItems = [...newDocData.items];
+    newItems[index] = { ...newItems[index], [field]: value };
+
+    if (field === "quantity" || field === "unitPrice") {
+      newItems[index].totalPrice = Math.round(Number(newItems[index].quantity) * Number(newItems[index].unitPrice) * 100) / 100;
+    }
+
+    const netAmount = newItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const taxAmount = newDocData.type === "invoice" ? netAmount * (newDocData.taxRate / 100) : 0;
+    const totalAmount = netAmount + taxAmount;
+
+    setNewDocData({
+      ...newDocData,
+      items: newItems,
+      netAmount: Math.round(netAmount * 100) / 100,
+      taxAmount: Math.round(taxAmount * 100) / 100,
+      totalAmount: Math.round(totalAmount * 100) / 100,
+    });
+  }, [newDocData]);
+
+  // Add item to new document
+  const addNewDocItem = useCallback(() => {
+    if (!newDocData) return;
+    setNewDocData({
+      ...newDocData,
+      items: [
+        ...newDocData.items,
+        { name: "", quantity: 0, unit: "kg", unitPrice: 0, totalPrice: 0 },
+      ],
+    });
+  }, [newDocData]);
+
+  // Remove item from new document
+  const removeNewDocItem = useCallback((index: number) => {
+    if (!newDocData || newDocData.items.length <= 1) return;
+    const newItems = newDocData.items.filter((_, i) => i !== index);
+
+    const netAmount = newItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const taxAmount = newDocData.type === "invoice" ? netAmount * (newDocData.taxRate / 100) : 0;
+    const totalAmount = netAmount + taxAmount;
+
+    setNewDocData({
+      ...newDocData,
+      items: newItems,
+      netAmount: Math.round(netAmount * 100) / 100,
+      taxAmount: Math.round(taxAmount * 100) / 100,
+      totalAmount: Math.round(totalAmount * 100) / 100,
+    });
+  }, [newDocData]);
+
+  // Save new document
+  const handleSaveNewDocument = useCallback(async () => {
+    if (!newDocData || !user) return;
+
+    // Validation
+    if (!newDocData.supplierName.trim()) {
+      toast({
+        title: "Fehler",
+        description: "Bitte geben Sie einen Lieferanten an.",
         variant: "destructive",
       });
       return;
     }
 
-    setIsUploading(true);
-    setPendingFile(file);
-
-    try {
-      // Extract data from the document
-      const data = await extractInvoiceData(file);
-      setExtractedData(data);
-      setIsVerifyDialogOpen(true);
-    } catch {
+    if (newDocData.items.length === 0 || !newDocData.items.some(item => item.name.trim())) {
       toast({
-        title: "Fehler bei der Analyse",
-        description: "Das Dokument konnte nicht analysiert werden.",
+        title: "Fehler",
+        description: "Bitte fügen Sie mindestens eine Position hinzu.",
         variant: "destructive",
       });
-      setPendingFile(null);
-    } finally {
-      setIsUploading(false);
+      return;
     }
-  }, [user, extractInvoiceData, toast]);
-
-  const handleSaveDocument = useCallback(async () => {
-    if (!extractedData || !user) return;
 
     setIsSaving(true);
 
     try {
-      // Upload file to storage if we have a pending file
-      let fileId: Id<"_storage"> | undefined;
-      if (pendingFile) {
-        const uploadUrl = await generateUploadUrl();
-        const response = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": pendingFile.type },
-          body: pendingFile,
-        });
-        if (!response.ok) {
-          throw new Error("File upload failed");
-        }
-        const { storageId } = await response.json();
-        fileId = storageId;
-      }
+      const documentDate = new Date(newDocData.documentDate).getTime();
+      const dueDate = newDocData.dueDate ? new Date(newDocData.dueDate).getTime() : undefined;
 
-      // Parse dates
-      const documentDate = new Date(extractedData.documentDate).getTime();
-      const dueDate = extractedData.dueDate ? new Date(extractedData.dueDate).getTime() : undefined;
+      // Generate filename
+      const typeLabel = newDocData.type === "invoice" ? "Rechnung" : "Lieferschein";
+      const dateStr = new Date(newDocData.documentDate).toLocaleDateString("de-DE").replace(/\./g, "-");
+      const fileName = newDocData.invoiceNumber
+        ? `${typeLabel}_${newDocData.invoiceNumber}_${newDocData.supplierName}.csv`
+        : `${typeLabel}_${dateStr}_${newDocData.supplierName}.csv`;
+
+      // Filter out empty items
+      const validItems = newDocData.items.filter(item => item.name.trim());
 
       await createDocument({
-        type: extractedData.type,
-        fileName: extractedData.fileName,
-        fileId,
-        invoiceNumber: extractedData.invoiceNumber || undefined,
-        supplierName: extractedData.supplierName,
-        supplierAddress: extractedData.supplierAddress || undefined,
+        type: newDocData.type,
+        fileName,
+        invoiceNumber: newDocData.invoiceNumber || undefined,
+        supplierName: newDocData.supplierName,
+        supplierAddress: newDocData.supplierAddress || undefined,
         documentDate,
         dueDate,
-        netAmount: extractedData.netAmount,
-        taxAmount: extractedData.taxAmount,
-        taxRate: extractedData.taxRate,
-        totalAmount: extractedData.totalAmount,
+        netAmount: newDocData.netAmount,
+        taxAmount: newDocData.taxAmount,
+        taxRate: newDocData.taxRate,
+        totalAmount: newDocData.totalAmount,
         uploadedBy: user._id,
-        items: extractedData.items,
+        items: validItems,
       });
 
       toast({
-        title: "Dokument gespeichert",
-        description: `${extractedData.fileName} wurde erfolgreich hinzugefügt.`,
+        title: "Dokument erstellt",
+        description: `${typeLabel} wurde erfolgreich gespeichert.`,
       });
 
-      setIsVerifyDialogOpen(false);
-      setExtractedData(null);
-      setPendingFile(null);
+      setIsCreateDialogOpen(false);
+      setNewDocData(null);
     } catch {
       toast({
         title: "Fehler beim Speichern",
@@ -394,65 +417,7 @@ export default function DocumentsPage() {
     } finally {
       setIsSaving(false);
     }
-  }, [extractedData, user, pendingFile, generateUploadUrl, createDocument, toast]);
-
-  const updateExtractedField = useCallback((field: keyof ExtractedInvoiceData, value: string | number) => {
-    if (!extractedData) return;
-    setExtractedData({ ...extractedData, [field]: value });
-  }, [extractedData]);
-
-  const updateExtractedItem = useCallback((index: number, field: keyof ExtractedItem, value: string | number) => {
-    if (!extractedData) return;
-    const newItems = [...extractedData.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-
-    // Recalculate total price if quantity or unit price changed
-    if (field === "quantity" || field === "unitPrice") {
-      newItems[index].totalPrice = Number(newItems[index].quantity) * Number(newItems[index].unitPrice);
-    }
-
-    // Recalculate totals
-    const netAmount = newItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    const taxAmount = netAmount * (extractedData.taxRate / 100);
-    const totalAmount = netAmount + taxAmount;
-
-    setExtractedData({
-      ...extractedData,
-      items: newItems,
-      netAmount: Math.round(netAmount * 100) / 100,
-      taxAmount: Math.round(taxAmount * 100) / 100,
-      totalAmount: Math.round(totalAmount * 100) / 100,
-    });
-  }, [extractedData]);
-
-  const addItem = useCallback(() => {
-    if (!extractedData) return;
-    setExtractedData({
-      ...extractedData,
-      items: [
-        ...extractedData.items,
-        { name: "", quantity: 0, unit: "Stk", unitPrice: 0, totalPrice: 0 },
-      ],
-    });
-  }, [extractedData]);
-
-  const removeItem = useCallback((index: number) => {
-    if (!extractedData) return;
-    const newItems = extractedData.items.filter((_, i) => i !== index);
-
-    // Recalculate totals
-    const netAmount = newItems.reduce((sum, item) => sum + item.totalPrice, 0);
-    const taxAmount = netAmount * (extractedData.taxRate / 100);
-    const totalAmount = netAmount + taxAmount;
-
-    setExtractedData({
-      ...extractedData,
-      items: newItems,
-      netAmount: Math.round(netAmount * 100) / 100,
-      taxAmount: Math.round(taxAmount * 100) / 100,
-      totalAmount: Math.round(totalAmount * 100) / 100,
-    });
-  }, [extractedData]);
+  }, [newDocData, user, createDocument, toast]);
 
   // Start editing an existing document
   const startEditingDocument = useCallback((doc: DocumentWithItems) => {
@@ -594,45 +559,6 @@ export default function DocumentsPage() {
     }
   }, [fileUrl, selectedDoc]);
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    await processFile(file);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-  };
-
-  const handleDragEnter = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  }, []);
-
-  const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    // Only set dragging to false if we're leaving the drop zone entirely
-    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-    setIsDragging(false);
-  }, []);
-
-  const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  }, []);
-
-  const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      await processFile(files[0]);
-    }
-  }, [processFile]);
-
   const handleApprove = async (docId: Id<"documents">) => {
     await updateStatus({ id: docId, status: "approved" });
     toast({
@@ -677,97 +603,15 @@ export default function DocumentsPage() {
           </p>
         </div>
         <div>
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-            accept=".pdf,.jpg,.jpeg,.png"
-            className="hidden"
-          />
           <Button
-            onClick={() => fileInputRef.current?.click()}
+            onClick={openCreateDialog}
             className="bg-amber-500 hover:bg-amber-600"
-            disabled={isUploading}
           >
-            {isUploading ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Wird analysiert...
-              </>
-            ) : (
-              <>
-                <Upload className="h-4 w-4 mr-2" />
-                Dokument hochladen
-              </>
-            )}
+            <Plus className="h-4 w-4 mr-2" />
+            Neues Dokument
           </Button>
         </div>
       </div>
-
-      {/* Upload Area */}
-      <Card
-        className={`border-dashed border-2 transition-all duration-200 ${
-          isDragging
-            ? "border-amber-500 bg-amber-50 scale-[1.02] shadow-lg"
-            : isUploading
-            ? "border-amber-300 bg-amber-50"
-            : "border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100"
-        }`}
-        onDragEnter={handleDragEnter}
-        onDragLeave={handleDragLeave}
-        onDragOver={handleDragOver}
-        onDrop={handleDrop}
-      >
-        <CardContent className="py-8">
-          <div
-            className={`flex flex-col items-center justify-center text-center cursor-pointer transition-transform duration-200 ${
-              isDragging ? "scale-105" : ""
-            }`}
-            onClick={() => !isUploading && fileInputRef.current?.click()}
-          >
-            <div className={`p-4 rounded-full mb-4 transition-all duration-200 ${
-              isDragging
-                ? "bg-amber-200 scale-110"
-                : isUploading
-                ? "bg-amber-100"
-                : "bg-amber-100"
-            }`}>
-              {isUploading ? (
-                <Loader2 className="h-8 w-8 text-amber-600 animate-spin" />
-              ) : (
-                <FileUp className={`h-8 w-8 text-amber-600 transition-transform duration-200 ${
-                  isDragging ? "animate-bounce" : ""
-                }`} />
-              )}
-            </div>
-            <h3 className={`font-medium mb-1 transition-colors duration-200 ${
-              isDragging ? "text-amber-700" : "text-slate-900"
-            }`}>
-              {isUploading
-                ? "Dokument wird analysiert..."
-                : isDragging
-                ? "Dokument hier ablegen"
-                : "Dokument hier ablegen oder klicken zum Hochladen"
-              }
-            </h3>
-            <p className={`text-sm transition-colors duration-200 ${
-              isDragging ? "text-amber-600" : "text-slate-500"
-            }`}>
-              {isUploading
-                ? "Bitte warten..."
-                : "PDF, JPG oder PNG"
-              }
-            </p>
-            {isDragging && (
-              <div className="mt-3 px-4 py-2 bg-amber-200 rounded-full">
-                <span className="text-sm font-medium text-amber-800">
-                  Loslassen zum Hochladen
-                </span>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
@@ -901,6 +745,321 @@ export default function DocumentsPage() {
         </TabsContent>
       </Tabs>
 
+      {/* Create New Document Dialog */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+        if (!open && !isSaving) {
+          setIsCreateDialogOpen(false);
+          setNewDocData(null);
+        }
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5 text-amber-600" />
+              Neues Dokument erfassen
+            </DialogTitle>
+            <DialogDescription>
+              Erfassen Sie eine neue Rechnung oder einen Lieferschein. Sie können Positionen manuell eingeben oder per CSV importieren.
+            </DialogDescription>
+          </DialogHeader>
+
+          {newDocData && (
+            <div className="space-y-6">
+              {/* Document Type & Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Dokumenttyp</Label>
+                  <Select
+                    value={newDocData.type}
+                    onValueChange={(v) => updateNewDocField("type", v as "invoice" | "delivery_note")}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="invoice">Rechnung</SelectItem>
+                      <SelectItem value="delivery_note">Lieferschein</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>{newDocData.type === "invoice" ? "Rechnungsnummer" : "Lieferscheinnummer"}</Label>
+                  <Input
+                    value={newDocData.invoiceNumber}
+                    onChange={(e) => updateNewDocField("invoiceNumber", e.target.value)}
+                    placeholder={newDocData.type === "invoice" ? "z.B. 2024-1234" : "z.B. LS-2024-5678"}
+                  />
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Supplier Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Lieferant *</Label>
+                  <Input
+                    value={newDocData.supplierName}
+                    onChange={(e) => updateNewDocField("supplierName", e.target.value)}
+                    placeholder="z.B. Frischehof Müller GmbH"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Adresse</Label>
+                  <Input
+                    value={newDocData.supplierAddress}
+                    onChange={(e) => updateNewDocField("supplierAddress", e.target.value)}
+                    placeholder="z.B. Ackerstraße 12, 20457 Hamburg"
+                  />
+                </div>
+              </div>
+
+              {/* Dates */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>{newDocData.type === "invoice" ? "Rechnungsdatum" : "Lieferdatum"}</Label>
+                  <Input
+                    type="date"
+                    value={newDocData.documentDate}
+                    onChange={(e) => updateNewDocField("documentDate", e.target.value)}
+                  />
+                </div>
+                {newDocData.type === "invoice" && (
+                  <div className="space-y-2">
+                    <Label>Fälligkeitsdatum</Label>
+                    <Input
+                      type="date"
+                      value={newDocData.dueDate}
+                      onChange={(e) => updateNewDocField("dueDate", e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
+              {/* CSV Import Section */}
+              <div className="bg-slate-50 rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-medium text-slate-900">Positionen per CSV importieren</h4>
+                    <p className="text-sm text-slate-500 mt-1">
+                      Laden Sie eine CSV-Datei mit Ihren Positionen hoch oder nutzen Sie unsere Vorlage.
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => downloadCsvTemplate(newDocData.type)}
+                    >
+                      <Download className="h-4 w-4 mr-1" />
+                      Vorlage
+                    </Button>
+                    <input
+                      type="file"
+                      ref={csvInputRef}
+                      onChange={handleCsvImport}
+                      accept=".csv"
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => csvInputRef.current?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-1" />
+                      CSV importieren
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Line Items */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-medium text-slate-900">Positionen</h4>
+                  <Button variant="outline" size="sm" onClick={addNewDocItem}>
+                    <Plus className="h-4 w-4 mr-1" />
+                    Zeile hinzufügen
+                  </Button>
+                </div>
+                <div className="border rounded-lg overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-slate-50">
+                        <TableHead className={newDocData.type === "invoice" ? "w-[35%]" : "w-[50%]"}>Artikel</TableHead>
+                        <TableHead className="w-[15%]">Menge</TableHead>
+                        <TableHead className="w-[12%]">Einheit</TableHead>
+                        {newDocData.type === "invoice" && (
+                          <>
+                            <TableHead className="w-[15%]">Einzelpreis</TableHead>
+                            <TableHead className="w-[13%] text-right">Gesamt</TableHead>
+                          </>
+                        )}
+                        <TableHead className="w-[5%]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {newDocData.items.map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="p-2">
+                            <Input
+                              value={item.name}
+                              onChange={(e) => updateNewDocItem(index, "name", e.target.value)}
+                              placeholder="Artikelname"
+                              className="h-8"
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Input
+                              type="number"
+                              value={item.quantity || ""}
+                              onChange={(e) => updateNewDocItem(index, "quantity", parseFloat(e.target.value) || 0)}
+                              placeholder="0"
+                              className="h-8"
+                            />
+                          </TableCell>
+                          <TableCell className="p-2">
+                            <Select
+                              value={item.unit}
+                              onValueChange={(v) => updateNewDocItem(index, "unit", v)}
+                            >
+                              <SelectTrigger className="h-8">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="kg">kg</SelectItem>
+                                <SelectItem value="g">g</SelectItem>
+                                <SelectItem value="L">L</SelectItem>
+                                <SelectItem value="ml">ml</SelectItem>
+                                <SelectItem value="Stk">Stk</SelectItem>
+                                <SelectItem value="Pkg">Pkg</SelectItem>
+                                <SelectItem value="Kiste">Kiste</SelectItem>
+                                <SelectItem value="Bund">Bund</SelectItem>
+                                <SelectItem value="Fl">Fl</SelectItem>
+                                <SelectItem value="Dose">Dose</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                          {newDocData.type === "invoice" && (
+                            <>
+                              <TableCell className="p-2">
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  value={item.unitPrice || ""}
+                                  onChange={(e) => updateNewDocItem(index, "unitPrice", parseFloat(e.target.value) || 0)}
+                                  placeholder="0,00"
+                                  className="h-8"
+                                />
+                              </TableCell>
+                              <TableCell className="p-2 text-right font-medium">
+                                €{item.totalPrice.toFixed(2)}
+                              </TableCell>
+                            </>
+                          )}
+                          <TableCell className="p-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                              onClick={() => removeNewDocItem(index)}
+                              disabled={newDocData.items.length <= 1}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* Totals - only for invoices */}
+              {newDocData.type === "invoice" && (
+                <>
+                  <Separator />
+                  <div className="bg-slate-50 rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label>MwSt-Satz (%)</Label>
+                        <Select
+                          value={newDocData.taxRate.toString()}
+                          onValueChange={(v) => {
+                            const newTaxRate = parseFloat(v);
+                            const taxAmount = newDocData.netAmount * (newTaxRate / 100);
+                            const totalAmount = newDocData.netAmount + taxAmount;
+                            setNewDocData({
+                              ...newDocData,
+                              taxRate: newTaxRate,
+                              taxAmount: Math.round(taxAmount * 100) / 100,
+                              totalAmount: Math.round(totalAmount * 100) / 100,
+                            });
+                          }}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0">0%</SelectItem>
+                            <SelectItem value="7">7%</SelectItem>
+                            <SelectItem value="19">19%</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="flex flex-col justify-end">
+                        <div className="text-sm text-slate-500">Netto</div>
+                        <div className="text-lg font-medium">€{newDocData.netAmount.toFixed(2)}</div>
+                      </div>
+                      <div className="flex flex-col justify-end">
+                        <div className="text-sm text-slate-500">MwSt ({newDocData.taxRate}%)</div>
+                        <div className="text-lg font-medium">€{newDocData.taxAmount.toFixed(2)}</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center">
+                      <span className="text-lg font-medium text-slate-900">Gesamtbetrag</span>
+                      <span className="text-2xl font-bold text-amber-600">€{newDocData.totalAmount.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsCreateDialogOpen(false);
+                    setNewDocData(null);
+                  }}
+                  disabled={isSaving}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  className="bg-amber-500 hover:bg-amber-600"
+                  onClick={handleSaveNewDocument}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Wird gespeichert...
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4 mr-2" />
+                      Dokument speichern
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Document Detail Dialog */}
       <Dialog open={!!selectedDoc} onOpenChange={(open) => {
         if (!open) {
@@ -1026,8 +1185,12 @@ export default function DocumentsPage() {
                       <TableRow className="bg-slate-50">
                         <TableHead>Artikel</TableHead>
                         <TableHead className="text-right">Menge</TableHead>
-                        <TableHead className="text-right">Einzelpreis</TableHead>
-                        <TableHead className="text-right">Gesamt</TableHead>
+                        {selectedDoc.type === "invoice" && (
+                          <>
+                            <TableHead className="text-right">Einzelpreis</TableHead>
+                            <TableHead className="text-right">Gesamt</TableHead>
+                          </>
+                        )}
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1037,12 +1200,16 @@ export default function DocumentsPage() {
                           <TableCell className="text-right">
                             {item.quantity} {item.unit}
                           </TableCell>
-                          <TableCell className="text-right">
-                            €{item.unitPrice.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="text-right font-medium">
-                            €{item.totalPrice.toFixed(2)}
-                          </TableCell>
+                          {selectedDoc.type === "invoice" && (
+                            <>
+                              <TableCell className="text-right">
+                                €{item.unitPrice.toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                €{item.totalPrice.toFixed(2)}
+                              </TableCell>
+                            </>
+                          )}
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1300,257 +1467,6 @@ export default function DocumentsPage() {
                     <>
                       <Check className="h-4 w-4 mr-2" />
                       Änderungen speichern
-                    </>
-                  )}
-                </Button>
-              </DialogFooter>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Verify Extracted Data Dialog */}
-      <Dialog open={isVerifyDialogOpen} onOpenChange={(open) => {
-        if (!open && !isSaving) {
-          setIsVerifyDialogOpen(false);
-          setExtractedData(null);
-        }
-      }}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Edit className="h-5 w-5 text-amber-600" />
-              Dokument überprüfen
-            </DialogTitle>
-            <DialogDescription>
-              Bitte überprüfen Sie die extrahierten Daten und korrigieren Sie diese bei Bedarf.
-            </DialogDescription>
-          </DialogHeader>
-
-          {extractedData && (
-            <div className="space-y-6">
-              {/* Document Type & Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="docType">Dokumenttyp</Label>
-                  <Select
-                    value={extractedData.type}
-                    onValueChange={(v) => updateExtractedField("type", v as "invoice" | "delivery_note")}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="invoice">Rechnung</SelectItem>
-                      <SelectItem value="delivery_note">Lieferschein</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="invoiceNumber">Rechnungsnummer</Label>
-                  <Input
-                    id="invoiceNumber"
-                    value={extractedData.invoiceNumber}
-                    onChange={(e) => updateExtractedField("invoiceNumber", e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Supplier Info */}
-              <div>
-                <h4 className="font-medium text-slate-900 mb-3">Lieferant</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="supplierName">Name</Label>
-                    <Input
-                      id="supplierName"
-                      value={extractedData.supplierName}
-                      onChange={(e) => updateExtractedField("supplierName", e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="supplierAddress">Adresse</Label>
-                    <Input
-                      id="supplierAddress"
-                      value={extractedData.supplierAddress}
-                      onChange={(e) => updateExtractedField("supplierAddress", e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Dates */}
-              <div>
-                <h4 className="font-medium text-slate-900 mb-3">Datum</h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="documentDate">Rechnungsdatum</Label>
-                    <Input
-                      id="documentDate"
-                      type="date"
-                      value={extractedData.documentDate}
-                      onChange={(e) => updateExtractedField("documentDate", e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="dueDate">Fälligkeitsdatum</Label>
-                    <Input
-                      id="dueDate"
-                      type="date"
-                      value={extractedData.dueDate}
-                      onChange={(e) => updateExtractedField("dueDate", e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Line Items */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium text-slate-900">Positionen</h4>
-                  <Button variant="outline" size="sm" onClick={addItem}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Position hinzufügen
-                  </Button>
-                </div>
-                <div className="border rounded-lg overflow-hidden">
-                  <Table>
-                    <TableHeader>
-                      <TableRow className="bg-slate-50">
-                        <TableHead className="w-[40%]">Artikel</TableHead>
-                        <TableHead className="w-[15%]">Menge</TableHead>
-                        <TableHead className="w-[12%]">Einheit</TableHead>
-                        <TableHead className="w-[15%]">Einzelpreis</TableHead>
-                        <TableHead className="w-[13%] text-right">Gesamt</TableHead>
-                        <TableHead className="w-[5%]"></TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {extractedData.items.map((item, index) => (
-                        <TableRow key={index}>
-                          <TableCell className="p-2">
-                            <Input
-                              value={item.name}
-                              onChange={(e) => updateExtractedItem(index, "name", e.target.value)}
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell className="p-2">
-                            <Input
-                              type="number"
-                              value={item.quantity}
-                              onChange={(e) => updateExtractedItem(index, "quantity", parseFloat(e.target.value) || 0)}
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell className="p-2">
-                            <Input
-                              value={item.unit}
-                              onChange={(e) => updateExtractedItem(index, "unit", e.target.value)}
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell className="p-2">
-                            <Input
-                              type="number"
-                              step="0.01"
-                              value={item.unitPrice}
-                              onChange={(e) => updateExtractedItem(index, "unitPrice", parseFloat(e.target.value) || 0)}
-                              className="h-8"
-                            />
-                          </TableCell>
-                          <TableCell className="p-2 text-right font-medium">
-                            €{item.totalPrice.toFixed(2)}
-                          </TableCell>
-                          <TableCell className="p-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                              onClick={() => removeItem(index)}
-                              disabled={extractedData.items.length <= 1}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-
-              <Separator />
-
-              {/* Totals */}
-              <div className="bg-slate-50 rounded-lg p-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="taxRate">MwSt-Satz (%)</Label>
-                    <Input
-                      id="taxRate"
-                      type="number"
-                      step="0.1"
-                      value={extractedData.taxRate}
-                      onChange={(e) => {
-                        const newTaxRate = parseFloat(e.target.value) || 0;
-                        const taxAmount = extractedData.netAmount * (newTaxRate / 100);
-                        const totalAmount = extractedData.netAmount + taxAmount;
-                        setExtractedData({
-                          ...extractedData,
-                          taxRate: newTaxRate,
-                          taxAmount: Math.round(taxAmount * 100) / 100,
-                          totalAmount: Math.round(totalAmount * 100) / 100,
-                        });
-                      }}
-                    />
-                  </div>
-                  <div className="flex flex-col justify-end">
-                    <div className="text-sm text-slate-500">Netto</div>
-                    <div className="text-lg font-medium">€{extractedData.netAmount.toFixed(2)}</div>
-                  </div>
-                  <div className="flex flex-col justify-end">
-                    <div className="text-sm text-slate-500">MwSt ({extractedData.taxRate}%)</div>
-                    <div className="text-lg font-medium">€{extractedData.taxAmount.toFixed(2)}</div>
-                  </div>
-                </div>
-                <div className="mt-4 pt-4 border-t border-slate-200 flex justify-between items-center">
-                  <span className="text-lg font-medium text-slate-900">Gesamtbetrag</span>
-                  <span className="text-2xl font-bold text-amber-600">€{extractedData.totalAmount.toFixed(2)}</span>
-                </div>
-              </div>
-
-              <DialogFooter className="gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsVerifyDialogOpen(false);
-                    setExtractedData(null);
-                  }}
-                  disabled={isSaving}
-                >
-                  Abbrechen
-                </Button>
-                <Button
-                  className="bg-amber-500 hover:bg-amber-600"
-                  onClick={handleSaveDocument}
-                  disabled={isSaving}
-                >
-                  {isSaving ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Wird gespeichert...
-                    </>
-                  ) : (
-                    <>
-                      <Check className="h-4 w-4 mr-2" />
-                      Dokument speichern
                     </>
                   )}
                 </Button>
