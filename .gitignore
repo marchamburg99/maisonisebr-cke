@@ -45,7 +45,8 @@ next-env.d.ts
 !.vscode/extensions.json
 .idea
 
-# Convex (generated files committed for Vercel builds)
+# Convex
+convex/_generated
 
 # OS
 .DS_Store
