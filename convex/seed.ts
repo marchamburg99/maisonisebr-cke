@@ -480,3 +480,75 @@ export const clearDatabase = mutation({
     return { success: true, message: "Database cleared successfully" };
   },
 });
+
+// Clear database but keep admin account
+export const clearKeepAdmin = mutation({
+  args: {},
+  handler: async (ctx) => {
+    // Find admin user first
+    const adminUser = await ctx.db
+      .query("users")
+      .filter((q) => q.eq(q.field("role"), "admin"))
+      .first();
+
+    // Delete all sessions
+    const sessions = await ctx.db.query("sessions").collect();
+    for (const session of sessions) {
+      await ctx.db.delete(session._id);
+    }
+
+    // Delete all users except admin
+    const users = await ctx.db.query("users").collect();
+    for (const user of users) {
+      if (user.role !== "admin") {
+        await ctx.db.delete(user._id);
+      }
+    }
+
+    // Delete all document items first (foreign key dependency)
+    const documentItems = await ctx.db.query("documentItems").collect();
+    for (const item of documentItems) {
+      await ctx.db.delete(item._id);
+    }
+
+    // Delete all documents
+    const documents = await ctx.db.query("documents").collect();
+    for (const doc of documents) {
+      // Also delete associated files from storage
+      if (doc.fileId) {
+        await ctx.storage.delete(doc.fileId);
+      }
+      await ctx.db.delete(doc._id);
+    }
+
+    // Delete all products
+    const products = await ctx.db.query("products").collect();
+    for (const product of products) {
+      await ctx.db.delete(product._id);
+    }
+
+    // Delete all suppliers
+    const suppliers = await ctx.db.query("suppliers").collect();
+    for (const supplier of suppliers) {
+      await ctx.db.delete(supplier._id);
+    }
+
+    // Delete all anomalies
+    const anomalies = await ctx.db.query("anomalies").collect();
+    for (const anomaly of anomalies) {
+      await ctx.db.delete(anomaly._id);
+    }
+
+    // Delete all spending records
+    const spendingRecords = await ctx.db.query("spendingRecords").collect();
+    for (const record of spendingRecords) {
+      await ctx.db.delete(record._id);
+    }
+
+    return {
+      success: true,
+      message: "Database cleared, admin account preserved",
+      adminEmail: adminUser?.email || "No admin found"
+    };
+  },
+});

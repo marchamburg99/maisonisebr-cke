@@ -55,6 +55,7 @@ export default defineSchema({
     supplierId: v.id("suppliers"),
     lastOrderDate: v.optional(v.number()),
   })
+    .index("by_name", ["name"])
     .index("by_category", ["category"])
     .index("by_supplier", ["supplierId"]),
 
@@ -62,10 +63,16 @@ export default defineSchema({
     type: v.union(v.literal("invoice"), v.literal("delivery_note")),
     fileName: v.string(),
     fileId: v.optional(v.id("_storage")),
+    invoiceNumber: v.optional(v.string()),
     uploadDate: v.number(),
     supplierName: v.string(),
+    supplierAddress: v.optional(v.string()),
     supplierId: v.optional(v.id("suppliers")),
     documentDate: v.number(),
+    dueDate: v.optional(v.number()),
+    netAmount: v.optional(v.number()),
+    taxAmount: v.optional(v.number()),
+    taxRate: v.optional(v.number()),
     totalAmount: v.number(),
     status: v.union(
       v.literal("pending"),
