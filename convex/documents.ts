@@ -1,5 +1,7 @@
 import { v } from "convex/values";
 import { query, mutation } from "./_generated/server";
+import { internal } from "./_generated/api";
+import { Id } from "./_generated/dataModel";
 
 // Generate upload URL for file storage
 export const generateUploadUrl = mutation({
@@ -160,6 +162,8 @@ export const create = mutation({
 
     // Find or create supplier
     let supplierId = docData.supplierId;
+    let isNewSupplier = false;
+
     if (!supplierId) {
       // Try to find existing supplier by name
       const existingSupplier = await ctx.db
@@ -181,6 +185,7 @@ export const create = mutation({
           rating: 3,
           createdAt: Date.now(),
         });
+        isNewSupplier = true;
       }
     }
 
@@ -195,6 +200,25 @@ export const create = mutation({
 
     for (const item of items) {
       await ctx.db.insert("documentItems", { documentId, ...item });
+    }
+
+    // Anomaly detection: duplicate invoice
+    if (docData.type === "invoice" && docData.invoiceNumber) {
+      await ctx.scheduler.runAfter(0, internal.anomalyDetection.detectDuplicateInvoice, {
+        documentId,
+        invoiceNumber: docData.invoiceNumber,
+        supplierId,
+        supplierName,
+      });
+    }
+
+    // Anomaly detection: new supplier
+    if (isNewSupplier) {
+      await ctx.scheduler.runAfter(0, internal.anomalyDetection.detectNewSupplier, {
+        supplierId,
+        supplierName,
+        documentId,
+      });
     }
 
     return documentId;
@@ -266,7 +290,7 @@ export const updateStatus = mutation({
     // Update the document status
     await ctx.db.patch(args.id, { status: args.status });
 
-    // If the document is being approved, sync items with inventory
+    // If the document is being approved, handle based on document type
     if (args.status === "approved" && document.status !== "approved") {
       // Get document items
       const items = await ctx.db
@@ -302,66 +326,112 @@ export const updateStatus = mutation({
         await ctx.db.patch(args.id, { supplierId });
       }
 
-      // Process each item and update/create products
-      for (const item of items) {
-        // Try to find existing product by name (case-insensitive)
-        const allProducts = await ctx.db.query("products").collect();
-        const existingProduct = allProducts.find(
-          (p) => p.name.toLowerCase() === item.name.toLowerCase()
-        );
+      // ONLY update inventory for DELIVERY NOTES (Lieferschein)
+      // Invoices are for accounting only - stock is updated when goods arrive (delivery note)
+      if (document.type === "delivery_note") {
+        const updatedProductIds: Array<{ productId: Id<"products">; wasLowStock: boolean }> = [];
 
-        if (existingProduct) {
-          // Update existing product: add to stock, recalculate average price
-          const newStock = existingProduct.currentStock + item.quantity;
-          // Weighted average price calculation
-          const totalOldValue = existingProduct.currentStock * existingProduct.avgPrice;
-          const totalNewValue = item.quantity * item.unitPrice;
-          const newAvgPrice = (totalOldValue + totalNewValue) / newStock;
+        // Process each item and update/create products
+        for (const item of items) {
+          // Try to find existing product by name (case-insensitive)
+          const allProducts = await ctx.db.query("products").collect();
+          const existingProduct = allProducts.find(
+            (p) => p.name.toLowerCase() === item.name.toLowerCase()
+          );
 
-          await ctx.db.patch(existingProduct._id, {
-            currentStock: newStock,
-            avgPrice: Math.round(newAvgPrice * 100) / 100,
-            lastOrderDate: document.documentDate,
-          });
-        } else {
-          // Create new product
-          const category = guessCategory(item.name);
-          await ctx.db.insert("products", {
-            name: item.name,
-            category,
-            unit: item.unit,
-            currentStock: item.quantity,
-            minStock: Math.ceil(item.quantity * 0.3), // Default min stock to 30% of initial quantity
-            avgPrice: item.unitPrice,
-            supplierId: supplierId!,
-            lastOrderDate: document.documentDate,
+          if (existingProduct) {
+            // Track if product was below minimum stock before update
+            const wasLowStock = existingProduct.currentStock < existingProduct.minStock;
+
+            // Update existing product: add to stock
+            const newStock = existingProduct.currentStock + item.quantity;
+            // For delivery notes without prices, keep the existing avgPrice
+            const newAvgPrice = item.unitPrice > 0
+              ? (existingProduct.currentStock * existingProduct.avgPrice + item.quantity * item.unitPrice) / newStock
+              : existingProduct.avgPrice;
+
+            await ctx.db.patch(existingProduct._id, {
+              currentStock: newStock,
+              avgPrice: Math.round(newAvgPrice * 100) / 100,
+              lastOrderDate: document.documentDate,
+            });
+
+            updatedProductIds.push({ productId: existingProduct._id, wasLowStock });
+          } else {
+            // Create new product
+            const category = guessCategory(item.name);
+            const newProductId = await ctx.db.insert("products", {
+              name: item.name,
+              category,
+              unit: item.unit,
+              currentStock: item.quantity,
+              minStock: Math.ceil(item.quantity * 0.3), // Default min stock to 30% of initial quantity
+              avgPrice: item.unitPrice || 0, // May be 0 for delivery notes
+              supplierId: supplierId!,
+              lastOrderDate: document.documentDate,
+            });
+
+            // Check if new product is already below min stock (unlikely but possible)
+            updatedProductIds.push({ productId: newProductId, wasLowStock: false });
+          }
+        }
+
+        // Anomaly detection: auto-resolve low stock anomalies for products that received stock
+        // and detect any new low stock situations
+        for (const { productId, wasLowStock } of updatedProductIds) {
+          if (wasLowStock) {
+            // Try to auto-resolve if stock was replenished
+            await ctx.scheduler.runAfter(0, internal.anomalyDetection.autoResolveLowStockAnomalies, {
+              productId,
+            });
+          }
+          // Also check if product is still below minimum (detect low stock)
+          await ctx.scheduler.runAfter(0, internal.anomalyDetection.detectLowStock, {
+            productId,
           });
         }
       }
 
-      // Update spending records
-      const date = new Date(document.documentDate);
-      const monthIndex = date.getMonth();
-      const year = date.getFullYear();
-      const monthNames = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
-      const month = monthNames[monthIndex];
+      // Update spending records ONLY for INVOICES (Rechnung)
+      // Delivery notes don't have financial amounts
+      if (document.type === "invoice") {
+        const date = new Date(document.documentDate);
+        const monthIndex = date.getMonth();
+        const year = date.getFullYear();
+        const monthNames = ["Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez"];
+        const month = monthNames[monthIndex];
 
-      const existingRecord = await ctx.db
-        .query("spendingRecords")
-        .withIndex("by_year_month", (q) => q.eq("year", year).eq("monthIndex", monthIndex))
-        .first();
+        const existingRecord = await ctx.db
+          .query("spendingRecords")
+          .withIndex("by_year_month", (q) => q.eq("year", year).eq("monthIndex", monthIndex))
+          .first();
 
-      if (existingRecord) {
-        await ctx.db.patch(existingRecord._id, {
-          amount: existingRecord.amount + document.totalAmount,
-        });
-      } else {
-        await ctx.db.insert("spendingRecords", {
-          month,
-          year,
-          monthIndex,
-          amount: document.totalAmount,
-        });
+        if (existingRecord) {
+          await ctx.db.patch(existingRecord._id, {
+            amount: existingRecord.amount + document.totalAmount,
+          });
+        } else {
+          await ctx.db.insert("spendingRecords", {
+            month,
+            year,
+            monthIndex,
+            amount: document.totalAmount,
+          });
+        }
+
+        // Anomaly detection: detect price changes and record price history
+        if (supplierId) {
+          await ctx.scheduler.runAfter(0, internal.anomalyDetection.detectPriceChanges, {
+            documentId: args.id,
+            supplierId,
+            items: items.map((item) => ({
+              name: item.name,
+              unitPrice: item.unitPrice,
+              unit: item.unit,
+            })),
+            documentDate: document.documentDate,
+          });
+        }
       }
     }
   },

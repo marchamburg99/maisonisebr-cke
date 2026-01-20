@@ -88,6 +88,33 @@ export const updateStock = mutation({
   },
 });
 
+export const adjustStock = mutation({
+  args: {
+    id: v.id("products"),
+    delta: v.number(),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const product = await ctx.db.get(args.id);
+    if (!product) throw new Error("Product not found");
+
+    const newStock = Math.max(0, product.currentStock + args.delta);
+    await ctx.db.patch(args.id, { currentStock: newStock });
+
+    // Log the adjustment for audit trail
+    await ctx.db.insert("stockAdjustments", {
+      productId: args.id,
+      previousStock: product.currentStock,
+      newStock,
+      delta: args.delta,
+      reason: args.reason || (args.delta > 0 ? "Manueller Zugang" : "Manueller Abgang"),
+      timestamp: Date.now(),
+    });
+
+    return newStock;
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("products") },
   handler: async (ctx, args) => {

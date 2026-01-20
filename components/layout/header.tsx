@@ -1,7 +1,8 @@
 "use client";
 
-import { Bell, LogOut, User } from "lucide-react";
+import { Bell, LogOut, Menu, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,6 +19,7 @@ import { useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import { getRoleLabel, type AnomalyType, type ProductCategory } from "@/types";
 import { Id } from "@/convex/_generated/dataModel";
+import { useSidebar } from "@/components/layout/sidebar";
 
 type Product = {
   _id: Id<"products">;
@@ -40,13 +42,10 @@ type Anomaly = {
   resolved: boolean;
 };
 
-interface HeaderProps {
-  sidebarCollapsed?: boolean;
-}
-
-export function Header({ sidebarCollapsed = false }: HeaderProps) {
+export function Header() {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const { collapsed, setMobileOpen } = useSidebar();
 
   const anomalies = useQuery(api.anomalies.listOpen) ?? [];
   const products = useQuery(api.products.list) ?? [];
@@ -69,24 +68,41 @@ export function Header({ sidebarCollapsed = false }: HeaderProps) {
 
   return (
     <header
-      className={`fixed top-0 right-0 z-30 h-16 border-b bg-white transition-all duration-300 ${
-        sidebarCollapsed ? "left-16" : "left-64"
-      }`}
+      className={cn(
+        "fixed top-0 right-0 z-30 h-16 border-b bg-white transition-all duration-300",
+        "left-0",
+        collapsed ? "md:left-16" : "md:left-64"
+      )}
     >
-      <div className="flex h-full items-center justify-between px-6">
-        {/* Page Title */}
-        <div>
-          <h1 className="text-xl font-semibold text-slate-900">
+      <div className="flex h-full items-center justify-between px-4 md:px-6">
+        {/* Left side - Hamburger menu on mobile */}
+        <div className="flex items-center gap-3">
+          {/* Hamburger menu button - only visible on mobile */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden h-11 w-11 touch-manipulation"
+            onClick={() => setMobileOpen(true)}
+          >
+            <Menu className="h-6 w-6 text-slate-600" />
+          </Button>
+
+          {/* Page Title */}
+          <h1 className="text-lg md:text-xl font-semibold text-slate-900 truncate">
             Restaurant Warenwirtschaft
           </h1>
         </div>
 
         {/* Right side actions */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 md:gap-4">
           {/* Notifications */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="relative h-11 w-11 md:h-10 md:w-10 touch-manipulation"
+              >
                 <Bell className="h-5 w-5 text-slate-600" />
                 {(anomalies.length > 0 || lowStockCount > 0) && (
                   <Badge
@@ -98,7 +114,10 @@ export function Header({ sidebarCollapsed = false }: HeaderProps) {
                 )}
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80">
+            <DropdownMenuContent
+              align="end"
+              className="w-80 max-w-[calc(100vw-2rem)]"
+            >
               <DropdownMenuLabel>Benachrichtigungen</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <div className="max-h-[300px] overflow-y-auto">
@@ -150,7 +169,10 @@ export function Header({ sidebarCollapsed = false }: HeaderProps) {
           {/* User Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="flex items-center gap-3 px-2">
+              <Button
+                variant="ghost"
+                className="flex items-center gap-2 md:gap-3 px-2 h-11 md:h-10 touch-manipulation"
+              >
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="bg-amber-100 text-amber-700">
                     {user ? getInitials(user.name) : "U"}
@@ -166,7 +188,10 @@ export function Header({ sidebarCollapsed = false }: HeaderProps) {
                 </div>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
+            <DropdownMenuContent
+              align="end"
+              className="w-56 max-w-[calc(100vw-2rem)]"
+            >
               <DropdownMenuLabel>Mein Konto</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push("/settings")}>

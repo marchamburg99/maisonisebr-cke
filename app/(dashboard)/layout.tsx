@@ -1,11 +1,34 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { Sidebar } from "@/components/layout/sidebar";
+import { Sidebar, SidebarProvider, useSidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { MobileNav } from "@/components/layout/mobile-nav";
 import { useAuth } from "@/hooks/use-auth";
+import { cn } from "@/lib/utils";
+
+function DashboardContent({ children }: { children: React.ReactNode }) {
+  const { collapsed } = useSidebar();
+
+  return (
+    <>
+      <Sidebar />
+      <Header />
+      <main
+        className={cn(
+          "pt-16 transition-all duration-300",
+          "pl-0 pb-16 md:pb-0",
+          collapsed ? "md:pl-16" : "md:pl-64"
+        )}
+      >
+        <div className="p-4 md:p-6">{children}</div>
+      </main>
+      <MobileNav />
+    </>
+  );
+}
 
 export default function DashboardLayout({
   children,
@@ -14,7 +37,6 @@ export default function DashboardLayout({
 }) {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
-  const [sidebarCollapsed] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -35,16 +57,10 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <Sidebar />
-      <Header sidebarCollapsed={sidebarCollapsed} />
-      <main
-        className={`pt-16 transition-all duration-300 ${
-          sidebarCollapsed ? "pl-16" : "pl-64"
-        }`}
-      >
-        <div className="p-6">{children}</div>
-      </main>
-    </div>
+    <SidebarProvider>
+      <div className="min-h-screen bg-slate-50">
+        <DashboardContent>{children}</DashboardContent>
+      </div>
+    </SidebarProvider>
   );
 }

@@ -119,7 +119,21 @@ export default defineSchema({
   })
     .index("by_resolved", ["resolved"])
     .index("by_severity", ["severity"])
-    .index("by_type", ["type"]),
+    .index("by_type", ["type"])
+    .index("by_type_document", ["type", "documentId"])
+    .index("by_type_product", ["type", "productId"]),
+
+  priceHistory: defineTable({
+    productName: v.string(),
+    supplierId: v.id("suppliers"),
+    unitPrice: v.number(),
+    unit: v.string(),
+    documentId: v.id("documents"),
+    documentDate: v.number(),
+    recordedAt: v.number(),
+  })
+    .index("by_product_supplier", ["productName", "supplierId"])
+    .index("by_document", ["documentId"]),
 
   spendingRecords: defineTable({
     month: v.string(),
@@ -127,4 +141,15 @@ export default defineSchema({
     monthIndex: v.number(),
     amount: v.number(),
   }).index("by_year_month", ["year", "monthIndex"]),
+
+  stockAdjustments: defineTable({
+    productId: v.id("products"),
+    previousStock: v.number(),
+    newStock: v.number(),
+    delta: v.number(),
+    reason: v.string(),
+    timestamp: v.number(),
+  })
+    .index("by_product", ["productId"])
+    .index("by_timestamp", ["timestamp"]),
 });
